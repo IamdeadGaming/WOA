@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Physique Analyzer</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">PA</div>
+        <div>
+          <h1>Physique AI</h1>
+          <p>Scan. Train. Improve.</p>
+        </div>
+      </div>
+
+      <nav class="nav-list" aria-label="Main navigation">
+        <button class="nav-item active" data-view="home"><span class="nav-icon">H</span><span>Home</span></button>
+        <button class="nav-item" data-view="scan"><span class="nav-icon">S</span><span>Body Scan</span></button>
+        <button class="nav-item" data-view="logger"><span class="nav-icon">L</span><span>Workout Log</span></button>
+        <button class="nav-item" data-view="programs"><span class="nav-icon">P</span><span>Programs</span></button>
+        <button class="nav-item" data-view="coach"><span class="nav-icon">C</span><span>AI Coach</span></button>
+      </nav>
+
+      <div class="side-panel streak-card">
+        <span class="label">Gym streak</span>
+        <strong id="sideStreak">0</strong>
+        <small id="sideStreakCopy">Log a visit to start.</small>
+      </div>
+    </aside>
+
+    <main class="main-panel">
+      <section class="topbar">
+        <div>
+          <p class="eyebrow">Local training command center</p>
+          <h2 id="viewTitle">Dashboard</h2>
+        </div>
+        <div class="top-actions">
+          <span id="aiStatus" class="status-pill">Backend AI checking</span>
+          <button id="refreshBtn" class="icon-button" title="Refresh dashboard" type="button">R</button>
+        </div>
+      </section>
+
+      <section id="home" class="view active-view">
+        <div class="home-grid">
+          <section class="hero-panel">
+            <div class="pulse-track" aria-hidden="true">
+              <span></span><span></span><span></span><span></span><span></span>
+            </div>
+            <div class="hero-content">
+              <p class="eyebrow">Today</p>
+              <h3 id="homeDate">Ready when you are</h3>
+              <p id="homeSummary">Your scanner, workout log, plans, and coach are synced locally.</p>
+              <div class="hero-actions">
+                <button class="primary-btn" data-go="scan" type="button">Start scan</button>
+                <button class="secondary-btn" id="markVisitBtn" type="button">Mark gym visit</button>
+              </div>
+            </div>
+            <div class="streak-orbit" aria-hidden="true">
+              <div>
+                <span id="homeStreak">0</span>
+                <small>visit streak</small>
+              </div>
+            </div>
+          </section>
+
+          <section class="metric-strip">
+            <article class="metric-tile">
+              <span>Total sessions</span>
+              <strong id="totalWorkouts">0</strong>
+            </article>
+            <article class="metric-tile">
+              <span>Volume</span>
+              <strong id="totalVolume">0 kg</strong>
+            </article>
+            <article class="metric-tile">
+              <span>Training time</span>
+              <strong id="totalMinutes">0 min</strong>
+            </article>
+            <article class="metric-tile">
+              <span>Last scan</span>
+              <strong id="lastScanMetric">None</strong>
+            </article>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Progress</p>
+                <h3>Day-by-day workload</h3>
+              </div>
+            </div>
+            <canvas id="homeProgressChart" class="chart" width="760" height="260"></canvas>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Recent</p>
+                <h3>Latest training</h3>
+              </div>
+            </div>
+            <div id="recentWorkouts" class="timeline empty-state">No workouts logged yet.</div>
+          </section>
+        </div>
+      </section>
+
+      <section id="scan" class="view">
+        <div class="scan-grid">
+          <section class="panel capture-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Menu 1</p>
+                <h3>Body composition analysis</h3>
+              </div>
+              <span id="cameraStatus" class="status-pill">Camera idle</span>
+            </div>
+
+            <div class="capture-layout">
+              <div class="camera-frame">
+                <video id="scanVideo" autoplay muted playsinline></video>
+                <canvas id="scanCanvas" hidden></canvas>
+                <div class="camera-overlay">
+                  <div class="scan-frame-lines"></div>
+                  <span id="posePrompt">Front relaxed</span>
+                </div>
+              </div>
+              <div class="dummy-stage">
+                <div class="pose-avatar" id="poseAvatar" aria-hidden="true">
+                  <span class="head"></span>
+                  <span class="torso"></span>
+                  <span class="arm left"></span>
+                  <span class="arm right"></span>
+                  <span class="leg left"></span>
+                  <span class="leg right"></span>
+                </div>
+                <p id="poseInstruction">Match this angle, relax, and keep feet planted.</p>
+              </div>
+            </div>
+
+            <div class="capture-actions">
+              <button id="startCameraBtn" class="secondary-btn" type="button">Start camera</button>
+              <button id="captureBtn" class="primary-btn" type="button">Capture angle</button>
+              <label class="file-pill">
+                Add images
+                <input id="imageUpload" type="file" accept="image/*" multiple>
+              </label>
+            </div>
+
+            <div id="scanShots" class="shot-strip"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Profile</p>
+                <h3>Measurement inputs</h3>
+              </div>
+            </div>
+            <form id="scanForm" class="form-grid">
+              <label>Sex
+                <select name="sex">
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                </select>
+              </label>
+              <label>Age
+                <input name="age" type="number" min="12" max="100" value="25">
+              </label>
+              <label>Height cm
+                <input name="height_cm" type="number" min="80" max="240" placeholder="175">
+              </label>
+              <label>Weight kg
+                <input name="weight_kg" type="number" min="20" max="250" step="0.1" placeholder="72">
+              </label>
+              <label>Waist cm
+                <input name="waist_cm" type="number" min="40" max="180" step="0.1" placeholder="82">
+              </label>
+              <label>Neck cm
+                <input name="neck_cm" type="number" min="20" max="80" step="0.1" placeholder="38">
+              </label>
+              <label>Hip cm
+                <input name="hip_cm" type="number" min="40" max="190" step="0.1" placeholder="Optional">
+              </label>
+              <label class="checkbox-row">
+                <input id="useAiScan" type="checkbox" checked>
+                <span>Use backend AI when available</span>
+              </label>
+              <button class="primary-btn full" type="submit">Analyze scan</button>
+            </form>
+          </section>
+
+          <section class="panel scan-results">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Results</p>
+                <h3>Professional estimate</h3>
+              </div>
+            </div>
+            <div id="scanResults" class="result-grid empty-state">Capture images or add measurements, then analyze.</div>
+          </section>
+        </div>
+      </section>
+
+      <section id="logger" class="view">
+        <div class="logger-grid">
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Menu 2</p>
+                <h3>Workout logger</h3>
+              </div>
+              <a class="download-link" href="/api/export/workouts.csv">Export CSV</a>
+            </div>
+            <form id="workoutForm" class="workout-form">
+              <label>Date <input name="date" type="date"></label>
+              <label>Exercise <input name="exercise" type="text" placeholder="Bench press" required></label>
+              <label>Body part
+                <select name="body_part">
+                  <option>Chest</option>
+                  <option>Back</option>
+                  <option>Legs</option>
+                  <option>Shoulders</option>
+                  <option>Arms</option>
+                  <option>Core</option>
+                  <option>Full body</option>
+                  <option>Cardio</option>
+                </select>
+              </label>
+              <label>Sets <input name="sets" type="number" min="0" value="3"></label>
+              <label>Reps <input name="reps" type="number" min="0" value="10"></label>
+              <label>Weight kg <input name="weight" type="number" min="0" step="0.5" value="0"></label>
+              <label>Duration min <input name="duration" type="number" min="0" value="45"></label>
+              <label>RPE <input name="rpe" type="range" min="1" max="10" value="7"></label>
+              <label class="wide">Notes <input name="notes" type="text" placeholder="Tempo, PR, pain-free, etc."></label>
+              <button class="primary-btn wide" type="submit">Save workout</button>
+            </form>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Analytics</p>
+                <h3>Daily progress</h3>
+              </div>
+            </div>
+            <canvas id="loggerChart" class="chart" width="760" height="260"></canvas>
+          </section>
+
+          <section class="panel workout-list-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">History</p>
+                <h3>Saved sessions</h3>
+              </div>
+            </div>
+            <div id="workoutList" class="workout-list empty-state">No workouts yet.</div>
+          </section>
+        </div>
+      </section>
+
+      <section id="programs" class="view">
+        <div class="program-grid">
+          <section class="panel program-selector">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Menu 3</p>
+                <h3>Workout program</h3>
+              </div>
+            </div>
+            <div id="bodyPartTabs" class="segmented"></div>
+            <div id="programList" class="program-list"></div>
+          </section>
+
+          <section class="panel movement-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Animated demo</p>
+                <h3 id="movementTitle">Exercise example</h3>
+              </div>
+              <button id="nextExerciseBtn" class="icon-button" type="button" title="Next exercise">N</button>
+            </div>
+            <canvas id="movementCanvas" class="movement-canvas" width="760" height="420"></canvas>
+            <div id="movementCues" class="cue-list"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="coach" class="view">
+        <div class="coach-grid">
+          <section class="panel video-coach-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Menu 4</p>
+                <h3>Live coaching video</h3>
+              </div>
+              <span id="coachCameraStatus" class="status-pill">Video idle</span>
+            </div>
+            <div class="camera-frame coach-video">
+              <video id="coachVideo" autoplay muted playsinline></video>
+              <canvas id="coachCanvas" hidden></canvas>
+              <div class="camera-overlay">
+                <div class="scan-frame-lines compact"></div>
+                <span id="liveCue">Start video for live cues</span>
+              </div>
+            </div>
+            <div class="capture-actions">
+              <button id="startCoachVideoBtn" class="secondary-btn" type="button">Start video</button>
+              <button id="coachSnapshotBtn" class="primary-btn" type="button">Attach snapshot</button>
+            </div>
+            <div id="attachedSnapshot" class="attached-shot"></div>
+          </section>
+
+          <section class="panel chat-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">AI coach</p>
+                <h3>Chat and programming help</h3>
+              </div>
+              <label class="checkbox-row small">
+                <input id="useAiCoach" type="checkbox" checked>
+                <span>AI</span>
+              </label>
+            </div>
+            <div id="chatMessages" class="chat-messages"></div>
+            <form id="coachForm" class="chat-form">
+              <input id="coachInput" type="text" placeholder="Ask about today's plan, form, diet, or recovery..." required>
+              <button class="primary-btn" type="submit">Send</button>
+            </form>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

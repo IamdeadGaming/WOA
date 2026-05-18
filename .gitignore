@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+physique_analyzer.db
+qa-*.png
+server.*.log
+.env
+.openai_api_key
+openai_api_key.txt
