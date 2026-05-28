@@ -1,0 +1,309 @@
+AI Physique Analyzer - AS Level Pseudocode
+
+CONSTANT AppName <- "AI Physique Analyzer"
+CONSTANT DefaultPort <- 8000
+
+PROCEDURE Main
+    Options <- GetCommandLineOptions()
+
+    IF Options.InitDatabase = TRUE THEN
+        CALL InitDatabase
+        OUTPUT "Database initialised"
+    ELSE
+        CALL RunServer(Options.Port, Options.OpenBrowser)
+    ENDIF
+ENDPROCEDURE
+
+
+PROCEDURE RunServer(StartPort, OpenBrowser)
+    CALL InitDatabase
+    Port <- FindFreePort(StartPort)
+    Server <- CreateHTTPServer("127.0.0.1", Port)
+
+    OUTPUT AppName, " running on port ", Port
+
+    IF OpenBrowser = TRUE THEN
+        CALL OpenWebBrowser(Port)
+    ENDIF
+
+    WHILE ServerIsRunning(Server)
+        Request <- WaitForRequest(Server)
+        CALL HandleRequest(Request)
+    ENDWHILE
+ENDPROCEDURE
+
+
+PROCEDURE InitDatabase
+    Database <- OpenDatabase("physique_analyzer.db")
+    CREATE TABLE workouts IF NOT EXISTS
+    CREATE TABLE gym_visits IF NOT EXISTS
+    CREATE TABLE scans IF NOT EXISTS
+    CREATE TABLE coach_messages IF NOT EXISTS
+    CALL CloseDatabase(Database)
+ENDPROCEDURE
+
+
+PROCEDURE HandleRequest(Request)
+    CASE OF Request.Method
+        "GET" :
+            CALL HandleGetRequest(Request)
+        "POST" :
+            CALL HandlePostRequest(Request)
+        "DELETE" :
+            CALL DeleteWorkout(Request)
+        OTHERWISE :
+            SEND ErrorResponse("Method not supported")
+    ENDCASE
+ENDPROCEDURE
+
+
+PROCEDURE HandleGetRequest(Request)
+    CASE OF Request.Path
+        "/api/health" :
+            SEND JsonResponse({"ok": TRUE})
+
+        "/api/summary" :
+            Summary <- BuildSummary()
+            SEND JsonResponse(Summary)
+
+        "/api/workouts" :
+            Workouts <- GetWorkouts(Request.Query)
+            SEND JsonResponse(Workouts)
+
+        "/api/workouts/progress" :
+            Progress <- GetWorkoutProgress(60)
+            SEND JsonResponse(Progress)
+
+        "/api/scans" :
+            Scans <- GetRecentScans()
+            SEND JsonResponse(Scans)
+
+        "/api/coach/history" :
+            Messages <- GetCoachHistory()
+            SEND JsonResponse(Messages)
+
+        "/api/export/workouts.csv" :
+            CALL ExportWorkoutsAsCSV
+
+        OTHERWISE :
+            CALL ServeStaticFile(Request.Path)
+    ENDCASE
+ENDPROCEDURE
+
+
+PROCEDURE HandlePostRequest(Request)
+    Payload <- ParseJSON(Request.Body)
+
+    CASE OF Request.Path
+        "/api/workouts" :
+            CALL CreateWorkout(Payload)
+
+        "/api/gym-visits" :
+            CALL CreateGymVisit(Payload)
+
+        "/api/scans" :
+            CALL CreateScan(Payload)
+
+        "/api/coach" :
+            CALL CreateCoachMessage(Payload)
+
+        OTHERWISE :
+            SEND ErrorResponse("Not found")
+    ENDCASE
+ENDPROCEDURE
+
+
+PROCEDURE CreateWorkout(Payload)
+    IF Payload.Exercise = "" THEN
+        SEND ErrorResponse("Exercise is required")
+    ELSE
+        Workout <- CleanWorkoutData(Payload)
+        INSERT Workout INTO workouts
+        CALL InsertGymVisit(Workout.Date, "workout")
+        SEND JsonResponse(Workout)
+    ENDIF
+ENDPROCEDURE
+
+
+PROCEDURE CreateGymVisit(Payload)
+    VisitDate <- Payload.Date
+
+    IF VisitDate = "" THEN
+        VisitDate <- Today()
+    ENDIF
+
+    CALL InsertGymVisit(VisitDate, "manual")
+    Streak <- CalculateStreak()
+    SEND JsonResponse(Streak)
+ENDPROCEDURE
+
+
+PROCEDURE CreateScan(Payload)
+    Profile <- Payload.Profile
+    Images <- Payload.Images
+
+    Result <- EstimateBodyComposition(Profile, LENGTH(Images))
+
+    IF Payload.UseAI = TRUE AND APIKeyExists() = TRUE THEN
+        Notes <- CallOpenAI(Profile, Images, Result)
+    ELSE
+        Notes <- CreateLocalScanNotes(Result)
+    ENDIF
+
+    Result.Notes <- Notes
+    INSERT Profile, Result INTO scans
+    SEND JsonResponse(Result)
+ENDPROCEDURE
+
+
+FUNCTION EstimateBodyComposition(Profile, ImageCount) RETURNS Result
+    Estimates <- []
+
+    IF Profile.Height > 0 AND Profile.Weight > 0 THEN
+        BMI <- Profile.Weight / (Profile.Height / 100) ^ 2
+        BodyFat <- EstimateBodyFatFromBMI(BMI, Profile.Age, Profile.Sex)
+        APPEND BodyFat TO Estimates
+    ENDIF
+
+    IF Profile.Height > 0 AND Profile.Waist > 0 AND Profile.Neck > 0 THEN
+        BodyFat <- EstimateBodyFatFromTapeMeasurements(Profile)
+        APPEND BodyFat TO Estimates
+    ENDIF
+
+    IF LENGTH(Estimates) = 0 THEN
+        FinalBodyFat <- 20.0
+    ELSE
+        FinalBodyFat <- Average(Estimates)
+    ENDIF
+
+    Confidence <- CalculateConfidence(ImageCount, Profile)
+    Classification <- ClassifyBodyFat(FinalBodyFat, Profile.Sex)
+
+    Result.BodyFat <- FinalBodyFat
+    Result.Confidence <- Confidence
+    Result.Classification <- Classification
+    Result.Recommendation <- BuildRecommendation(Classification)
+
+    RETURN Result
+ENDFUNCTION
+
+
+PROCEDURE CreateCoachMessage(Payload)
+    Message <- Payload.Message
+
+    IF Message = "" THEN
+        SEND ErrorResponse("Message is required")
+    ELSE
+        INSERT Message INTO coach_messages AS "user"
+        Summary <- BuildSummary()
+
+        IF Payload.UseAI = TRUE AND APIKeyExists() = TRUE THEN
+            Reply <- CallOpenAI(Message, Payload.Image, Summary)
+        ELSE
+            Reply <- CreateLocalCoachReply(Message, Summary)
+        ENDIF
+
+        INSERT Reply INTO coach_messages AS "assistant"
+        SEND JsonResponse(Reply)
+    ENDIF
+ENDPROCEDURE
+
+
+FUNCTION BuildSummary RETURNS Summary
+    Summary.Today <- Today()
+    Summary.Streak <- CalculateStreak()
+    Summary.Totals <- CalculateWorkoutTotals()
+    Summary.RecentWorkouts <- GetRecentWorkouts()
+    Summary.Progress <- GetWorkoutProgress(30)
+    Summary.LastScan <- GetLatestScan()
+    RETURN Summary
+ENDFUNCTION
+
+
+FUNCTION CalculateStreak RETURNS Streak
+    VisitDates <- GetGymVisitDates()
+
+    IF LENGTH(VisitDates) = 0 THEN
+        Streak.Count <- 0
+        RETURN Streak
+    ENDIF
+
+    LatestDate <- MostRecentDate(VisitDates)
+    DaysSince <- DaysBetween(Today(), LatestDate)
+
+    IF DaysSince >= 3 THEN
+        Streak.Count <- 0
+    ELSE
+        Streak.Count <- CountConsecutiveVisitsWithGapUnder3Days(VisitDates)
+    ENDIF
+
+    RETURN Streak
+ENDFUNCTION
+
+
+PROCEDURE BrowserStart
+    CALL InitialisePageState
+    CALL BindNavigationButtons
+    CALL BindScanControls
+    CALL BindWorkoutForm
+    CALL BindProgramControls
+    CALL BindCoachControls
+
+    CALL LoadDashboard
+    CALL RenderWorkoutPrograms
+
+    WHILE PageIsOpen()
+        CALL DrawMovementAnimation
+        CALL UpdateLiveCueIfVideoIsActive
+    ENDWHILE
+ENDPROCEDURE
+
+
+PROCEDURE LoadDashboard
+    Summary <- Fetch("/api/summary")
+    DISPLAY Summary.Streak
+    DISPLAY Summary.Totals
+    DISPLAY Summary.LastScan
+    CALL DrawProgressChart(Summary.Progress)
+    CALL DisplayRecentWorkouts(Summary.RecentWorkouts)
+ENDPROCEDURE
+
+
+PROCEDURE SubmitWorkoutForm
+    Workout <- ReadWorkoutForm()
+    Response <- POST "/api/workouts" WITH Workout
+
+    IF Response.Success = TRUE THEN
+        CALL LoadWorkoutList
+        CALL LoadDashboard
+    ELSE
+        DISPLAY Response.Error
+    ENDIF
+ENDPROCEDURE
+
+
+PROCEDURE SubmitScanForm
+    Profile <- ReadScanForm()
+    Images <- GetCapturedOrUploadedImages()
+    Response <- POST "/api/scans" WITH Profile, Images
+
+    IF Response.Success = TRUE THEN
+        CALL DisplayScanResults(Response.Result)
+        CALL LoadDashboard
+    ELSE
+        DISPLAY Response.Error
+    ENDIF
+ENDPROCEDURE
+
+
+PROCEDURE SendCoachMessage
+    Message <- ReadCoachInput()
+    Image <- GetAttachedSnapshot()
+    Response <- POST "/api/coach" WITH Message, Image
+
+    IF Response.Success = TRUE THEN
+        DISPLAY Response.Reply
+    ELSE
+        DISPLAY Response.Error
+    ENDIF
+ENDPROCEDURE

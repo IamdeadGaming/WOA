@@ -599,7 +599,9 @@ function drawMovement() {
     const ctx = canvas.getContext("2d");
     const w = canvas.width;
     const h = canvas.height;
-    const t = state.movementFrame / 40;
+    const cycleLength = 80;
+    state.movementFrame = (state.movementFrame + 1) % cycleLength;
+    const t = (state.movementFrame / cycleLength) * Math.PI * 2;
     ctx.clearRect(0, 0, w, h);
     ctx.fillStyle = "#101316";
     ctx.fillRect(0, 0, w, h);
@@ -610,7 +612,6 @@ function drawMovement() {
     else if (part === "Shoulders") drawPress(ctx, w, h, t);
     else if (part === "Core") drawPlank(ctx, w, h, t);
     else drawPress(ctx, w, h, t, part === "Chest");
-    state.movementFrame += 1;
   }
   requestAnimationFrame(drawMovement);
 }
@@ -667,8 +668,8 @@ function drawPersonBase(ctx, x, y, scale, phase, mode) {
 }
 
 function drawSquat(ctx, w, h, t) {
-  const depth = Math.abs(Math.sin(t));
-  drawPersonBase(ctx, w / 2, h - 86 + depth * 36, 1.05, t, "squat");
+  const depth = Math.abs(Math.sin(t / 2));
+  drawPersonBase(ctx, w / 2, h - 86 + depth * 36, 1.05, t / 2, "squat");
   drawLabel(ctx, "Squat path: hips down, chest steady, knees track toes");
 }
 
