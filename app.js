@@ -566,7 +566,7 @@ function renderPrograms() {
             <span>${escapeHtml(program.level)}</span>
             <span>${escapeHtml(program.schedule)}</span>
           </div>
-          <ul>${program.exercises.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+          <ul>${program.exercises.map((item, exerciseIndex) => `<li><button type="button" data-exercise-program="${index}" data-exercise="${exerciseIndex}" class="${index === state.selectedProgramIndex && exerciseIndex === state.selectedExerciseIndex ? "active" : ""}">${escapeHtml(item)}</button></li>`).join("")}</ul>
         </article>
       `,
     )
@@ -575,6 +575,14 @@ function renderPrograms() {
     card.addEventListener("click", () => {
       state.selectedProgramIndex = Number(card.dataset.program);
       state.selectedExerciseIndex = 0;
+      renderPrograms();
+    });
+  });
+  $$("[data-exercise]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      state.selectedProgramIndex = Number(button.dataset.exerciseProgram);
+      state.selectedExerciseIndex = Number(button.dataset.exercise);
       renderPrograms();
     });
   });
@@ -606,12 +614,7 @@ function drawMovement() {
     ctx.fillStyle = "#101316";
     ctx.fillRect(0, 0, w, h);
     drawFloor(ctx, w, h);
-    const part = state.selectedPart;
-    if (part === "Legs") drawSquat(ctx, w, h, t);
-    else if (part === "Back") drawRow(ctx, w, h, t);
-    else if (part === "Shoulders") drawPress(ctx, w, h, t);
-    else if (part === "Core") drawPlank(ctx, w, h, t);
-    else drawPress(ctx, w, h, t, part === "Chest");
+    drawExerciseDemo(ctx, w, h, t);
   }
   requestAnimationFrame(drawMovement);
 }
@@ -625,67 +628,482 @@ function drawFloor(ctx, w, h) {
   ctx.stroke();
 }
 
-function drawPersonBase(ctx, x, y, scale, phase, mode) {
-  ctx.strokeStyle = "#dce5df";
-  ctx.lineWidth = 12 * scale;
-  ctx.lineCap = "round";
-  ctx.fillStyle = "#f5b84b";
-  const bob = Math.sin(phase) * 8 * scale;
-  const headY = y - 148 * scale + bob;
-  ctx.beginPath();
-  ctx.arc(x, headY, 18 * scale, 0, Math.PI * 2);
-  ctx.fill();
-  const shoulderY = y - 112 * scale + bob;
-  const hipY = y - 50 * scale + bob;
-  line(ctx, x, shoulderY, x, hipY);
-  if (mode === "squat") {
-    const kneeY = y - 8 * scale + Math.abs(Math.sin(phase)) * 26 * scale;
-    line(ctx, x, hipY, x - 44 * scale, kneeY);
-    line(ctx, x - 44 * scale, kneeY, x - 72 * scale, y);
-    line(ctx, x, hipY, x + 44 * scale, kneeY);
-    line(ctx, x + 44 * scale, kneeY, x + 72 * scale, y);
-    line(ctx, x - 38 * scale, shoulderY, x + 38 * scale, shoulderY);
-    line(ctx, x - 38 * scale, shoulderY, x - 74 * scale, shoulderY + 36 * scale);
-    line(ctx, x + 38 * scale, shoulderY, x + 74 * scale, shoulderY + 36 * scale);
-  } else if (mode === "row") {
-    line(ctx, x, shoulderY, x + 66 * scale, shoulderY + 42 * scale);
-    line(ctx, x + 66 * scale, shoulderY + 42 * scale, x + 118 * scale + Math.sin(phase) * 38 * scale, shoulderY + 16 * scale);
-    line(ctx, x, hipY, x - 58 * scale, y);
-    line(ctx, x, hipY, x + 38 * scale, y);
-  } else if (mode === "plank") {
-    line(ctx, x - 130 * scale, y - 44 * scale, x + 88 * scale, y - 58 * scale);
-    line(ctx, x - 116 * scale, y - 44 * scale, x - 150 * scale, y - 4 * scale);
-    line(ctx, x + 88 * scale, y - 58 * scale, x + 152 * scale, y - 18 * scale);
+function drawExerciseDemo(ctx, w, h, t) {
+  const exercise = (currentProgram()?.exercises[state.selectedExerciseIndex] || "").toLowerCase();
+  const rep = repProgress(t);
+
+  if (exercise.includes("deadlift") || exercise.includes("hinge") || exercise.includes("pull-through")) {
+    drawHinge(ctx, w, h, rep);
+  } else if (exercise.includes("hip thrust")) {
+    drawHipThrust(ctx, w, h, rep);
+  } else if (exercise.includes("bulgarian") || exercise.includes("split squat")) {
+    drawSplitSquat(ctx, w, h, rep);
+  } else if (exercise.includes("leg curl")) {
+    drawLegCurl(ctx, w, h, rep);
+  } else if (exercise.includes("calf raise")) {
+    drawCalfRaise(ctx, w, h, rep);
+  } else if (exercise.includes("row") || exercise.includes("pull-up") || exercise.includes("pulldown") || exercise.includes("face pull")) {
+    drawPull(ctx, w, h, rep, exercise);
+  } else if (exercise.includes("squat") || exercise.includes("leg press")) {
+    drawSquat(ctx, w, h, rep);
+  } else if (exercise.includes("crunch")) {
+    drawCrunch(ctx, w, h, rep);
+  } else if (exercise.includes("plank") || exercise.includes("dead bug") || exercise.includes("pallof")) {
+    drawCore(ctx, w, h, rep, exercise);
+  } else if (exercise.includes("curl") || exercise.includes("pressdown") || exercise.includes("triceps")) {
+    drawArmIsolation(ctx, w, h, rep, exercise);
+  } else if (exercise.includes("push-up")) {
+    drawPushUp(ctx, w, h, rep);
+  } else if (exercise.includes("fly") || exercise.includes("pec") || exercise.includes("lateral raise") || exercise.includes("rear delt") || exercise.includes("y raise")) {
+    drawRaiseOrFly(ctx, w, h, rep, exercise);
+  } else if (exercise.includes("bench") || exercise.includes("chest")) {
+    drawBenchPress(ctx, w, h, rep, exercise);
   } else {
-    const handY = shoulderY - 58 * scale - Math.sin(phase) * 46 * scale;
-    line(ctx, x - 36 * scale, shoulderY, x - 54 * scale, handY);
-    line(ctx, x + 36 * scale, shoulderY, x + 54 * scale, handY);
-    line(ctx, x, hipY, x - 42 * scale, y);
-    line(ctx, x, hipY, x + 42 * scale, y);
-    ctx.strokeStyle = "#7bb7ff";
-    line(ctx, x - 78 * scale, handY, x + 78 * scale, handY);
+    drawOverheadPress(ctx, w, h, rep);
   }
 }
 
-function drawSquat(ctx, w, h, t) {
-  const depth = Math.abs(Math.sin(t / 2));
-  drawPersonBase(ctx, w / 2, h - 86 + depth * 36, 1.05, t / 2, "squat");
-  drawLabel(ctx, "Squat path: hips down, chest steady, knees track toes");
+function repProgress(t) {
+  return (1 - Math.cos(t)) / 2;
 }
 
-function drawRow(ctx, w, h, t) {
-  drawPersonBase(ctx, w / 2 - 40, h - 86, 1.05, t, "row");
-  drawLabel(ctx, "Row path: brace, pull elbow back, pause without twisting");
+function easeJoint(value) {
+  return value * value * (3 - 2 * value);
 }
 
-function drawPress(ctx, w, h, t, chest = false) {
-  drawPersonBase(ctx, w / 2, h - 86, 1.05, t, "press");
-  drawLabel(ctx, chest ? "Press path: shoulder blades set, smooth bar path" : "Press path: ribs down, lock out cleanly");
+function point(x, y) {
+  return { x, y };
 }
 
-function drawPlank(ctx, w, h, t) {
-  drawPersonBase(ctx, w / 2, h - 92, 1.08, t, "plank");
-  drawLabel(ctx, "Core path: straight line, quiet hips, steady breathing");
+function drawStickFigure(ctx, joints, scale = 1) {
+  ctx.strokeStyle = "#dce5df";
+  ctx.lineWidth = 12 * scale;
+  ctx.lineCap = "round";
+  [
+    ["headBase", "shoulder"],
+    ["shoulder", "hip"],
+    ["shoulder", "elbowL"],
+    ["elbowL", "handL"],
+    ["shoulder", "elbowR"],
+    ["elbowR", "handR"],
+    ["hip", "kneeL"],
+    ["kneeL", "footL"],
+    ["hip", "kneeR"],
+    ["kneeR", "footR"],
+  ].forEach(([a, b]) => {
+    if (joints[a] && joints[b]) line(ctx, joints[a].x, joints[a].y, joints[b].x, joints[b].y);
+  });
+
+  if (joints.head) {
+    ctx.fillStyle = "#f5b84b";
+    ctx.beginPath();
+    ctx.arc(joints.head.x, joints.head.y, 18 * scale, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawSquat(ctx, w, h, rep) {
+  const d = easeJoint(rep);
+  const floor = h - 86;
+  const hip = point(w / 2 - 18 * d, floor - 126 + 58 * d);
+  const shoulder = point(w / 2 + 10 - 38 * d, floor - 224 + 48 * d);
+  const joints = {
+    head: point(shoulder.x + 7, shoulder.y - 43),
+    headBase: point(shoulder.x + 4, shoulder.y - 18),
+    shoulder,
+    hip,
+    kneeL: point(w / 2 - 66 + 34 * d, floor - 58 + 32 * d),
+    footL: point(w / 2 - 78, floor),
+    kneeR: point(w / 2 + 66 + 34 * d, floor - 58 + 32 * d),
+    footR: point(w / 2 + 86, floor),
+    elbowL: point(shoulder.x - 48, shoulder.y + 28),
+    handL: point(shoulder.x - 72, shoulder.y + 66),
+    elbowR: point(shoulder.x + 48, shoulder.y + 28),
+    handR: point(shoulder.x + 72, shoulder.y + 66),
+  };
+  drawStickFigure(ctx, joints, 1.03);
+  drawLabel(ctx, "Squat path: hips sit between heels, knees bend with toes, torso stays braced");
+}
+
+function drawHinge(ctx, w, h, rep) {
+  const d = easeJoint(rep);
+  const floor = h - 86;
+  const hip = point(w / 2 - 8 - 46 * d, floor - 116 + 8 * d);
+  const shoulder = point(hip.x + 28 + 112 * d, hip.y - 112 + 72 * d);
+  const handL = point(shoulder.x - 42 - 8 * d, shoulder.y + 70 + 38 * d);
+  const handR = point(shoulder.x - 14 - 8 * d, shoulder.y + 70 + 38 * d);
+  const joints = {
+    head: point(shoulder.x + 24, shoulder.y - 25),
+    headBase: point(shoulder.x + 8, shoulder.y - 7),
+    shoulder,
+    hip,
+    kneeL: point(w / 2 - 55, floor - 48 + 10 * d),
+    footL: point(w / 2 - 70, floor),
+    kneeR: point(w / 2 + 43, floor - 46 + 10 * d),
+    footR: point(w / 2 + 62, floor),
+    elbowL: point((shoulder.x + handL.x) / 2, (shoulder.y + handL.y) / 2),
+    handL,
+    elbowR: point((shoulder.x + handR.x) / 2, (shoulder.y + handR.y) / 2),
+    handR,
+  };
+  drawStickFigure(ctx, joints, 1.03);
+  ctx.strokeStyle = "#7bb7ff";
+  ctx.lineWidth = 8;
+  line(ctx, handL.x - 42, handL.y, handR.x + 42, handR.y);
+  drawLabel(ctx, "Hinge path: hips move back, shins nearly vertical, spine stays neutral");
+}
+
+function drawPull(ctx, w, h, rep, exercise) {
+  const isVertical = exercise.includes("pull-up") || exercise.includes("pulldown");
+  if (isVertical) {
+    const d = easeJoint(rep);
+    const x = w / 2;
+    const shoulderY = h - 238 + 34 * d;
+    const joints = {
+      head: point(x, shoulderY - 42),
+      headBase: point(x, shoulderY - 18),
+      shoulder: point(x, shoulderY),
+      hip: point(x, shoulderY + 92),
+      kneeL: point(x - 36, shoulderY + 154),
+      footL: point(x - 48, shoulderY + 204),
+      kneeR: point(x + 36, shoulderY + 154),
+      footR: point(x + 48, shoulderY + 204),
+      elbowL: point(x - 74 + 30 * d, shoulderY - 34 + 56 * d),
+      handL: point(x - 112, h - 326),
+      elbowR: point(x + 74 - 30 * d, shoulderY - 34 + 56 * d),
+      handR: point(x + 112, h - 326),
+    };
+    drawStickFigure(ctx, joints, 1);
+    ctx.strokeStyle = "#7bb7ff";
+    ctx.lineWidth = 8;
+    line(ctx, x - 132, h - 326, x + 132, h - 326);
+    drawLabel(ctx, "Vertical pull: elbows drive down, ribs stay stacked, no swinging");
+    return;
+  }
+
+  const d = easeJoint(rep);
+  const hip = point(w / 2 - 62, h - 196);
+  const shoulder = point(hip.x + 138, hip.y - 36);
+  const elbowX = shoulder.x - 14 - 78 * d;
+  const joints = {
+    head: point(shoulder.x + 31, shoulder.y - 26),
+    headBase: point(shoulder.x + 10, shoulder.y - 8),
+    shoulder,
+    hip,
+    kneeL: point(hip.x - 26, h - 124),
+    footL: point(hip.x - 56, h - 86),
+    kneeR: point(hip.x + 42, h - 124),
+    footR: point(hip.x + 94, h - 86),
+    elbowL: point(elbowX, shoulder.y + 34 + 14 * d),
+    handL: point(elbowX - 50 + 10 * d, shoulder.y + 74 + 6 * d),
+    elbowR: point(elbowX, shoulder.y + 34 + 14 * d),
+    handR: point(elbowX - 50 + 10 * d, shoulder.y + 74 + 6 * d),
+  };
+  drawStickFigure(ctx, joints, 1.02);
+  drawLabel(ctx, "Row path: hinge stays fixed, elbows travel toward hips, torso does not twist");
+}
+
+function drawBenchPress(ctx, w, h, rep, exercise) {
+  const d = easeJoint(rep);
+  const benchY = h - 148;
+  ctx.strokeStyle = "rgba(255,255,255,0.18)";
+  ctx.lineWidth = 12;
+  line(ctx, w / 2 - 165, benchY + 28, w / 2 + 145, benchY + 28);
+  line(ctx, w / 2 - 112, benchY + 28, w / 2 - 128, h - 86);
+  line(ctx, w / 2 + 96, benchY + 28, w / 2 + 112, h - 86);
+
+  const barY = benchY - 88 + 70 * d;
+  const shoulder = point(w / 2 - 62, benchY - 8);
+  const hip = point(w / 2 + 62, benchY + 3);
+  const joints = {
+    head: point(w / 2 - 128, benchY - 18),
+    headBase: point(w / 2 - 105, benchY - 10),
+    shoulder,
+    hip,
+    kneeL: point(w / 2 + 142, h - 124),
+    footL: point(w / 2 + 166, h - 86),
+    kneeR: point(w / 2 + 90, h - 124),
+    footR: point(w / 2 + 72, h - 86),
+    elbowL: point(w / 2 - 88, barY + 32 * d),
+    handL: point(w / 2 - 96, barY),
+    elbowR: point(w / 2 + 22, barY + 32 * d),
+    handR: point(w / 2 + 44, barY),
+  };
+  drawStickFigure(ctx, joints, 1);
+  ctx.strokeStyle = "#7bb7ff";
+  ctx.lineWidth = 8;
+  line(ctx, w / 2 - 132, barY, w / 2 + 92, barY);
+  drawLabel(ctx, "Bench path: shoulders pinned, elbows tuck slightly, bar lowers to lower chest");
+}
+
+function drawPushUp(ctx, w, h, rep) {
+  const d = easeJoint(rep);
+  const floor = h - 86;
+  const shoulder = point(w / 2 - 110, floor - 112 + 58 * d);
+  const hip = point(w / 2 + 48, floor - 94 + 50 * d);
+  const joints = {
+    head: point(shoulder.x - 42, shoulder.y - 10),
+    headBase: point(shoulder.x - 18, shoulder.y + 2),
+    shoulder,
+    hip,
+    kneeL: point(w / 2 + 126, floor - 42),
+    footL: point(w / 2 + 210, floor - 8),
+    kneeR: point(w / 2 + 122, floor - 50),
+    footR: point(w / 2 + 204, floor - 16),
+    elbowL: point(shoulder.x - 26, floor - 46 + 30 * d),
+    handL: point(shoulder.x - 56, floor - 2),
+    elbowR: point(shoulder.x + 32, floor - 48 + 30 * d),
+    handR: point(shoulder.x + 54, floor - 2),
+  };
+  drawStickFigure(ctx, joints, 1.02);
+  drawLabel(ctx, "Push-up path: rigid body line, elbows bend back, chest moves as one unit");
+}
+
+function drawRaiseOrFly(ctx, w, h, rep, exercise) {
+  const d = easeJoint(rep);
+  const x = w / 2;
+  const floor = h - 86;
+  const shoulder = point(x, floor - 186);
+  const hip = point(x, floor - 94);
+  const isFly = exercise.includes("fly") || exercise.includes("pec");
+  const armLift = isFly ? 1 - d : d;
+  const handY = shoulder.y + (isFly ? 32 - 64 * armLift : 82 - 118 * armLift);
+  const reach = isFly ? 92 - 34 * armLift : 46 + 76 * armLift;
+  const joints = {
+    head: point(x, shoulder.y - 42),
+    headBase: point(x, shoulder.y - 18),
+    shoulder,
+    hip,
+    kneeL: point(x - 34, floor - 48),
+    footL: point(x - 46, floor),
+    kneeR: point(x + 34, floor - 48),
+    footR: point(x + 46, floor),
+    elbowL: point(x - reach * 0.56, shoulder.y + (handY - shoulder.y) * 0.55),
+    handL: point(x - reach, handY),
+    elbowR: point(x + reach * 0.56, shoulder.y + (handY - shoulder.y) * 0.55),
+    handR: point(x + reach, handY),
+  };
+  drawStickFigure(ctx, joints, 1.02);
+  drawLabel(ctx, isFly ? "Fly path: soft elbows, arms arc around the chest, shoulders stay set" : "Raise path: elbows lead, torso quiet, shoulders do not shrug early");
+}
+
+function drawHipThrust(ctx, w, h, rep) {
+  const d = easeJoint(rep);
+  const benchY = h - 168;
+  ctx.strokeStyle = "rgba(255,255,255,0.18)";
+  ctx.lineWidth = 12;
+  line(ctx, w / 2 - 178, benchY, w / 2 - 64, benchY);
+  line(ctx, w / 2 - 160, benchY, w / 2 - 170, h - 86);
+  const hip = point(w / 2 + 16, h - 114 - 48 * (1 - d));
+  const shoulder = point(w / 2 - 88, benchY - 8);
+  const joints = {
+    head: point(w / 2 - 148, benchY - 28),
+    headBase: point(w / 2 - 124, benchY - 15),
+    shoulder,
+    hip,
+    kneeL: point(w / 2 + 98, h - 132),
+    footL: point(w / 2 + 150, h - 86),
+    kneeR: point(w / 2 + 58, h - 128),
+    footR: point(w / 2 + 106, h - 86),
+    elbowL: point(w / 2 - 36, hip.y - 18),
+    handL: point(w / 2 + 8, hip.y - 20),
+    elbowR: point(w / 2 - 10, hip.y - 18),
+    handR: point(w / 2 + 34, hip.y - 20),
+  };
+  drawStickFigure(ctx, joints, 1.02);
+  drawLabel(ctx, "Hip thrust: ribs down, pelvis rises to lockout, shins finish nearly vertical");
+}
+
+function drawSplitSquat(ctx, w, h, rep) {
+  const d = easeJoint(rep);
+  const floor = h - 86;
+  const hip = point(w / 2 - 12, floor - 134 + 54 * d);
+  const shoulder = point(hip.x + 4, hip.y - 102);
+  const joints = {
+    head: point(shoulder.x, shoulder.y - 42),
+    headBase: point(shoulder.x, shoulder.y - 18),
+    shoulder,
+    hip,
+    kneeL: point(w / 2 - 78, floor - 72 + 46 * d),
+    footL: point(w / 2 - 120, floor),
+    kneeR: point(w / 2 + 82, floor - 52 + 34 * d),
+    footR: point(w / 2 + 148, floor),
+    elbowL: point(shoulder.x - 44, shoulder.y + 54),
+    handL: point(shoulder.x - 54, shoulder.y + 100),
+    elbowR: point(shoulder.x + 44, shoulder.y + 54),
+    handR: point(shoulder.x + 54, shoulder.y + 100),
+  };
+  drawStickFigure(ctx, joints, 1.02);
+  drawLabel(ctx, "Split squat: front knee tracks toes, back knee drops, pelvis stays square");
+}
+
+function drawLegCurl(ctx, w, h, rep) {
+  const d = easeJoint(rep);
+  const benchY = h - 162;
+  ctx.strokeStyle = "rgba(255,255,255,0.18)";
+  ctx.lineWidth = 12;
+  line(ctx, w / 2 - 172, benchY + 20, w / 2 + 142, benchY + 20);
+  const kneeY = benchY + 16;
+  const heelY = kneeY + 76 - 118 * d;
+  const joints = {
+    head: point(w / 2 - 160, benchY - 8),
+    headBase: point(w / 2 - 132, benchY + 6),
+    shoulder: point(w / 2 - 82, benchY + 14),
+    hip: point(w / 2 + 44, benchY + 18),
+    kneeL: point(w / 2 + 128, kneeY),
+    footL: point(w / 2 + 156, heelY),
+    kneeR: point(w / 2 + 100, kneeY + 8),
+    footR: point(w / 2 + 124, heelY + 8),
+    elbowL: point(w / 2 - 116, benchY + 50),
+    handL: point(w / 2 - 148, benchY + 68),
+    elbowR: point(w / 2 - 66, benchY + 50),
+    handR: point(w / 2 - 36, benchY + 68),
+  };
+  drawStickFigure(ctx, joints, 1);
+  drawLabel(ctx, "Leg curl: hips stay down, knees fixed, heels curl toward glutes under control");
+}
+
+function drawCalfRaise(ctx, w, h, rep) {
+  const d = easeJoint(rep);
+  const x = w / 2;
+  const floor = h - 86;
+  const lift = 26 * (1 - d);
+  const shoulder = point(x, floor - 194 - lift);
+  const joints = {
+    head: point(x, shoulder.y - 42),
+    headBase: point(x, shoulder.y - 18),
+    shoulder,
+    hip: point(x, floor - 98 - lift),
+    kneeL: point(x - 32, floor - 48 - lift),
+    footL: point(x - 52, floor - 4),
+    kneeR: point(x + 32, floor - 48 - lift),
+    footR: point(x + 52, floor - 4),
+    elbowL: point(x - 42, shoulder.y + 60),
+    handL: point(x - 50, shoulder.y + 106),
+    elbowR: point(x + 42, shoulder.y + 60),
+    handR: point(x + 50, shoulder.y + 106),
+  };
+  drawStickFigure(ctx, joints, 1.02);
+  drawLabel(ctx, "Calf raise: knees tall, heels lift straight up, pause before lowering");
+}
+
+function drawCrunch(ctx, w, h, rep) {
+  const d = easeJoint(rep);
+  const floor = h - 86;
+  const hip = point(w / 2 + 10, floor - 44);
+  const shoulder = point(w / 2 - 92 + 48 * d, floor - 58 - 42 * d);
+  const joints = {
+    head: point(shoulder.x - 34, shoulder.y - 18),
+    headBase: point(shoulder.x - 12, shoulder.y - 6),
+    shoulder,
+    hip,
+    kneeL: point(w / 2 + 82, floor - 98),
+    footL: point(w / 2 + 148, floor),
+    kneeR: point(w / 2 + 46, floor - 92),
+    footR: point(w / 2 + 102, floor),
+    elbowL: point(shoulder.x - 18, shoulder.y - 40),
+    handL: point(shoulder.x - 44, shoulder.y - 34),
+    elbowR: point(shoulder.x + 18, shoulder.y - 38),
+    handR: point(shoulder.x + 42, shoulder.y - 30),
+  };
+  drawStickFigure(ctx, joints, 1.02);
+  drawLabel(ctx, "Crunch: ribs curl toward pelvis, hips stay still, neck stays long");
+}
+
+function drawOverheadPress(ctx, w, h, rep) {
+  const d = easeJoint(rep);
+  const x = w / 2;
+  const floor = h - 86;
+  const shoulder = point(x, floor - 190);
+  const hip = point(x, floor - 96);
+  const handY = shoulder.y - 34 - 92 * (1 - d);
+  const joints = {
+    head: point(x, shoulder.y - 42),
+    headBase: point(x, shoulder.y - 18),
+    shoulder,
+    hip,
+    kneeL: point(x - 34, floor - 48),
+    footL: point(x - 46, floor),
+    kneeR: point(x + 34, floor - 48),
+    footR: point(x + 46, floor),
+    elbowL: point(x - 54, shoulder.y - 8 - 34 * (1 - d)),
+    handL: point(x - 58, handY),
+    elbowR: point(x + 54, shoulder.y - 8 - 34 * (1 - d)),
+    handR: point(x + 58, handY),
+  };
+  drawStickFigure(ctx, joints, 1.02);
+  ctx.strokeStyle = "#7bb7ff";
+  ctx.lineWidth = 8;
+  line(ctx, x - 88, handY, x + 88, handY);
+  drawLabel(ctx, "Overhead press: ribs down, bar stays close, head moves through at lockout");
+}
+
+function drawArmIsolation(ctx, w, h, rep, exercise) {
+  const d = easeJoint(rep);
+  const x = w / 2;
+  const floor = h - 86;
+  const curl = exercise.includes("curl");
+  const shoulder = point(x, floor - 186);
+  const elbowY = shoulder.y + 72;
+  const handY = curl ? elbowY + 62 - 94 * (1 - d) : elbowY - 58 + 100 * d;
+  const joints = {
+    head: point(x, shoulder.y - 42),
+    headBase: point(x, shoulder.y - 18),
+    shoulder,
+    hip: point(x, floor - 94),
+    kneeL: point(x - 34, floor - 48),
+    footL: point(x - 46, floor),
+    kneeR: point(x + 34, floor - 48),
+    footR: point(x + 46, floor),
+    elbowL: point(x - 46, elbowY),
+    handL: point(x - 54, handY),
+    elbowR: point(x + 46, elbowY),
+    handR: point(x + 54, handY),
+  };
+  drawStickFigure(ctx, joints, 1.02);
+  drawLabel(ctx, curl ? "Curl path: upper arm quiet, elbow flexes only, no torso sway" : "Triceps path: upper arm fixed, elbows extend fully, shoulders stay down");
+}
+
+function drawCore(ctx, w, h, rep, exercise) {
+  if (exercise.includes("dead bug")) {
+    const d = easeJoint(rep);
+    const y = h - 166;
+    const joints = {
+      head: point(w / 2 - 128, y - 18),
+      headBase: point(w / 2 - 104, y - 10),
+      shoulder: point(w / 2 - 64, y),
+      hip: point(w / 2 + 40, y + 4),
+      kneeL: point(w / 2 + 92 - 38 * d, y - 64 + 36 * d),
+      footL: point(w / 2 + 120 - 72 * d, y - 124 + 88 * d),
+      kneeR: point(w / 2 + 104, y - 58),
+      footR: point(w / 2 + 132, y - 118),
+      elbowL: point(w / 2 - 48 + 46 * d, y - 70 + 34 * d),
+      handL: point(w / 2 - 44 + 92 * d, y - 128 + 90 * d),
+      elbowR: point(w / 2 - 72, y - 70),
+      handR: point(w / 2 - 78, y - 128),
+    };
+    drawStickFigure(ctx, joints, 1);
+    drawLabel(ctx, "Dead bug: low back stays set while opposite arm and leg move slowly");
+    return;
+  }
+
+  const breathe = Math.sin(rep * Math.PI) * 5;
+  const joints = {
+    head: point(w / 2 - 164, h - 184 + breathe),
+    headBase: point(w / 2 - 138, h - 178 + breathe),
+    shoulder: point(w / 2 - 96, h - 166 + breathe),
+    hip: point(w / 2 + 66, h - 154 + breathe),
+    kneeL: point(w / 2 + 142, h - 122),
+    footL: point(w / 2 + 208, h - 96),
+    kneeR: point(w / 2 + 138, h - 132),
+    footR: point(w / 2 + 200, h - 106),
+    elbowL: point(w / 2 - 136, h - 108),
+    handL: point(w / 2 - 112, h - 92),
+    elbowR: point(w / 2 - 90, h - 110),
+    handR: point(w / 2 - 60, h - 94),
+  };
+  drawStickFigure(ctx, joints, 1.02);
+  drawLabel(ctx, "Plank path: ears, ribs, hips, and heels hold one quiet line");
 }
 
 function drawLabel(ctx, text) {
